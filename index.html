@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tetris</title>
+<style>
+:root{--bg:#f3f3f0;--panel:#fff;--ink:#1d1d1b;--muted:#7a7a75;--grid:#ececE8;--veil:rgba(255,255,255,.92);
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121212;--panel:#1c1c1c;--ink:#ececea;--muted:#8d8d88;--grid:#292929;--veil:rgba(18,18,18,.92)}}
+:root[data-theme="dark"]{--bg:#121212;--panel:#1c1c1c;--ink:#ececea;--muted:#8d8d88;--grid:#292929;--veil:rgba(18,18,18,.92)}
+html{scroll-padding-top:env(safe-area-inset-top,0px);background:var(--bg)}
+html,body{height:100%;margin:0}
+*{touch-action:none}
+body{background:var(--bg);color:var(--ink);font:500 16px/1.2 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;justify-content:center;overflow:hidden;overscroll-behavior:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+.board{position:relative}
+#cv{display:block;border-radius:6px}
+.ov{position:absolute;inset:0;background:var(--veil);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;border-radius:6px;pointer-events:none}
+.ov[hidden]{display:none}
+.ov h2{margin:0;font-size:26px;font-weight:600}
+.ov p{margin:0;color:var(--muted)}
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f3f3f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
+</head>
+<body>
+<div class="board" id="bd">
+  <canvas id="cv"></canvas>
+  <div class="ov" id="ov"><h2 id="ot">Tetris</h2><p id="os">Touchez pour jouer</p></div>
+</div>
+<script>
+(()=>{
+const C=10,R=20,$=id=>document.getElementById(id);
+const S={I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],O:[[1,1],[1,1]],T:[[0,1,0],[1,1,1],[0,0,0]],S:[[0,1,1],[1,1,0],[0,0,0]],Z:[[1,1,0],[0,1,1],[0,0,0]],J:[[1,0,0],[1,1,1],[0,0,0]],L:[[0,0,1],[1,1,1],[0,0,0]]};
+const K={I:'#4cc3d9',O:'#e8c547',T:'#a35bd1',S:'#5cb85c',Z:'#e5534b',J:'#4a78e8',L:'#e8933a'};
+const cv=$('cv'),ctx=cv.getContext('2d'),ov=$('ov'),bd=$('bd');
+let board,cur=null,bag=[],lines=0,level=1,state='ready',last=0,acc=0,cell=20,lockUntil=0,col={panel:'#fff',grid:'#eee'};
+
+const pick=()=>{if(!bag.length){bag=Object.keys(S);for(let i=bag.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[bag[i],bag[j]]=[bag[j],bag[i]]}}return bag.pop()};
+const empty=()=>Array.from({length:R},()=>Array(C).fill(0));
+const hit=(m,x,y)=>m.some((r,j)=>r.some((v,i)=>{if(!v)return false;const a=x+i,b=y+j;return a<0||a>=C||b>=R||(b>=0&&board[b][a])}));
+const move=(dx,dy)=>{if(hit(cur.m,cur.x+dx,cur.y+dy))return false;cur.x+=dx;cur.y+=dy;return true};
+const rot=()=>{const m=cur.m[0].map((_,i)=>cur.m.map(r=>r[i]).reverse());for(const d of [0,-1,1,-2,2])if(!hit(m,cur.x+d,cur.y)){cur.m=m;cur.x+=d;return}};
+const speed=()=>Math.max(90,800-(level-1)*70);
+const show=(t,s)=>{$('ot').textContent=t;$('os').textContent=s;ov.hidden=false};
+
+const spawn=()=>{const t=pick(),m=S[t].map(r=>r.slice());cur={t,m,x:(C-m[0].length)/2|0,y:0};if(hit(m,cur.x,cur.y))over()};
+const lock=()=>{
+  cur.m.forEach((r,j)=>r.forEach((v,i)=>{if(v&&cur.y+j>=0)board[cur.y+j][cur.x+i]=cur.t}));
+  const keep=board.filter(r=>r.some(v=>!v)),n=R-keep.length;
+  if(n){board=[...Array.from({length:n},()=>Array(C).fill(0)),...keep];lines+=n;level=(lines/10|0)+1}
+  spawn();
+};
+const hard=()=>{while(move(0,1));acc=0;lock()};
+const over=()=>{state='over';lockUntil=performance.now()+700;show('Partie terminée','Touchez pour rejouer')};
+const start=()=>{board=empty();lines=0;level=1;bag=[];state='play';ov.hidden=true;spawn();acc=0;last=performance.now();draw()};
+
+const cellp=(x,y,color)=>{ctx.fillStyle=color;ctx.fillRect(x*cell+1,y*cell+1,cell-2,cell-2)};
+function draw(){
+  const W=C*cell,H=R*cell;
+  ctx.fillStyle=col.panel;ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle=col.grid;ctx.lineWidth=1;ctx.beginPath();
+  for(let x=1;x<C;x++){ctx.moveTo(x*cell+.5,0);ctx.lineTo(x*cell+.5,H)}
+  for(let y=1;y<R;y++){ctx.moveTo(0,y*cell+.5);ctx.lineTo(W,y*cell+.5)}
+  ctx.stroke();
+  board.forEach((r,y)=>r.forEach((t,x)=>t&&cellp(x,y,K[t])));
+  if(cur&&state!=='ready')cur.m.forEach((r,j)=>r.forEach((v,i)=>{if(v&&cur.y+j>=0)cellp(cur.x+i,cur.y+j,K[cur.t])}));
+}
+const colors=()=>{const s=getComputedStyle(document.documentElement);col={panel:s.getPropertyValue('--panel').trim(),grid:s.getPropertyValue('--grid').trim()};draw()};
+function fit(){
+  const r=document.body.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+  cell=Math.max(8,Math.floor(Math.min((r.width-24)/C,(r.height-24)/R)));
+  const W=cell*C,H=cell*R;
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.width=bd.style.width=W+'px';cv.style.height=bd.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);colors();
+}
+
+// Gestes : glisser = déplacer, balayer vers le bas = chute, toucher = pivoter
+let id=null,sx,sy,ax,t0,moved,dropped,idle;
+addEventListener('pointerdown',e=>{
+  if(id!==null)return;
+  id=e.pointerId;sx=ax=e.clientX;sy=e.clientY;t0=performance.now();moved=dropped=false;idle=state!=='play';
+});
+addEventListener('pointermove',e=>{
+  if(e.pointerId!==id||idle||dropped||state!=='play')return;
+  const dx=e.clientX-sx,dy=e.clientY-sy,st=cell*.9;
+  if(dy>cell*1.6&&dy>Math.abs(dx)*1.5){dropped=true;hard();return}
+  while(e.clientX-ax>=st){ax+=st;moved=true;move(1,0)}
+  while(ax-e.clientX>=st){ax-=st;moved=true;move(-1,0)}
+});
+const end=e=>{
+  if(e.pointerId!==id)return;
+  id=null;
+  if(e.type!=='pointerup')return;
+  if(idle){if(state==='ready'||performance.now()>lockUntil)start();return}
+  if(state==='play'&&!moved&&!dropped&&performance.now()-t0<350&&Math.hypot(e.clientX-sx,e.clientY-sy)<14)rot();
+};
+addEventListener('pointerup',end);
+addEventListener('pointercancel',e=>{if(e.pointerId===id)id=null});
+addEventListener('contextmenu',e=>e.preventDefault());
+addEventListener('resize',fit);
+matchMedia('(prefers-color-scheme:dark)').addEventListener('change',colors);
+new MutationObserver(colors).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+function frame(t){
+  if(state==='play'){
+    acc+=Math.min(t-last,100);
+    while(acc>=speed()&&state==='play'){acc-=speed();if(!move(0,1))lock()}
+    draw();
+  }
+  last=t;requestAnimationFrame(frame);
+}
+
+board=empty();fit();
+requestAnimationFrame(frame);
+})();
+</script>
+<script>
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js'))
+</script>
+</body>
+</html>
