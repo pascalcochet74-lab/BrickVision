@@ -56,7 +56,22 @@ const hard=()=>{while(move(0,1));acc=0;lock()};
 const over=()=>{state='over';lockUntil=performance.now()+700;show('Partie terminée','Touchez pour rejouer')};
 const start=()=>{board=empty();lines=0;level=1;bag=[];state='play';ov.hidden=true;spawn();acc=0;last=performance.now();draw()};
 
-const cellp=(x,y,color)=>{ctx.fillStyle=color;ctx.fillRect(x*cell+1,y*cell+1,cell-2,cell-2)};
+// Briques « carré de chocolat » : biseau net à 4 facettes + centre plat
+let spr={};
+const sprite=color=>{
+  const dpr=window.devicePixelRatio||1,s=Math.round(cell*dpr),g=Math.max(1,Math.round(dpr)),w=s-2*g,b=Math.max(1,Math.round(w*.2));
+  const c=document.createElement('canvas');c.width=c.height=s;
+  const x=c.getContext('2d'),a=g,z=g+w;
+  x.fillStyle=color;x.fillRect(a,a,w,w);
+  const f=(shade,pts)=>{x.fillStyle=shade;x.beginPath();pts.forEach(([px,py],i)=>i?x.lineTo(px,py):x.moveTo(px,py));x.closePath();x.fill()};
+  f('rgba(255,255,255,.45)',[[a,a],[z,a],[z-b,a+b],[a+b,a+b]]); // haut
+  f('rgba(255,255,255,.2)',[[a,a],[a+b,a+b],[a+b,z-b],[a,z]]);  // gauche
+  f('rgba(0,0,0,.22)',[[z,a],[z,z],[z-b,z-b],[z-b,a+b]]);       // droite
+  f('rgba(0,0,0,.42)',[[a,z],[z,z],[z-b,z-b],[a+b,z-b]]);       // bas
+  return c;
+};
+const buildSprites=()=>{spr={};for(const t in K)spr[t]=sprite(K[t])};
+const cellp=(x,y,t)=>ctx.drawImage(spr[t],x*cell,y*cell,cell,cell);
 function draw(){
   const W=C*cell,H=R*cell;
   ctx.fillStyle=col.panel;ctx.fillRect(0,0,W,H);
@@ -64,8 +79,8 @@ function draw(){
   for(let x=1;x<C;x++){ctx.moveTo(x*cell+.5,0);ctx.lineTo(x*cell+.5,H)}
   for(let y=1;y<R;y++){ctx.moveTo(0,y*cell+.5);ctx.lineTo(W,y*cell+.5)}
   ctx.stroke();
-  board.forEach((r,y)=>r.forEach((t,x)=>t&&cellp(x,y,K[t])));
-  if(cur&&state!=='ready')cur.m.forEach((r,j)=>r.forEach((v,i)=>{if(v&&cur.y+j>=0)cellp(cur.x+i,cur.y+j,K[cur.t])}));
+  board.forEach((r,y)=>r.forEach((t,x)=>t&&cellp(x,y,t)));
+  if(cur&&state!=='ready')cur.m.forEach((r,j)=>r.forEach((v,i)=>{if(v&&cur.y+j>=0)cellp(cur.x+i,cur.y+j,cur.t)}));
 }
 const colors=()=>{const s=getComputedStyle(document.documentElement);col={panel:s.getPropertyValue('--panel').trim(),grid:s.getPropertyValue('--grid').trim()};draw()};
 function fit(){
@@ -73,7 +88,7 @@ function fit(){
   cell=Math.max(8,Math.floor(Math.min((r.width-24)/C,(r.height-24)/R)));
   const W=cell*C,H=cell*R;
   cv.width=W*dpr;cv.height=H*dpr;cv.style.width=bd.style.width=W+'px';cv.style.height=bd.style.height=H+'px';
-  ctx.setTransform(dpr,0,0,dpr,0,0);colors();
+  ctx.setTransform(dpr,0,0,dpr,0,0);buildSprites();colors();
 }
 
 // Gestes : glisser = déplacer, balayer vers le bas = chute, toucher = pivoter
