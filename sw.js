@@ -1,5 +1,5 @@
 // Change ce numéro à chaque mise à jour de l'app pour forcer le rafraîchissement du cache
-const CACHE = 'tetris-v1';
+const CACHE = 'tetris-v2';
 
 const FILES = [
   './',
